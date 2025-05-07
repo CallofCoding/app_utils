@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:app_utils/src/core/app_utils_config.dart';
 import 'package:app_utils/src/core/network_service_config.dart';
+import 'package:app_utils/src/core/user_session.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 
 class NetworkServiceHandler{
@@ -73,28 +73,11 @@ class NetworkServiceHandler{
 
         data = jsonResponse;
 
+        await UserSession.instance.deleteToken();
         if(onUnAuthentication != null && context != null){
           await onUnAuthentication!(context!);
         }
-        // SharedPreferences.getInstance().then(
-        //       (value) async {
-        //     await value.clear();
-        //   },
-        // ).then(
-        //       (value) {
-        //     if (context.mounted) {
-        //       final navigator = Navigator.maybeOf(context);
-        //       if (navigator != null) {
-        //         navigator.pushAndRemoveUntil(
-        //           MaterialPageRoute(
-        //             builder: (context) => const LoginScreen(),
-        //           ),
-        //               (route) => false,
-        //         );
-        //       }
-        //     }
-        //   },
-        // );
+
       } else {
         // show error for status code is not 200 and print message also
         var jsonResponse = jsonDecode(response.body);
@@ -124,7 +107,7 @@ class NetworkServiceHandler{
   }
 
   Future<Map<String, String>> _headers() async {
-    String token = await SharedPreferences.getInstance().then((value) => value.getString('access_token') ?? '',);
+     String? token = await UserSession.instance.getToken();
     return {
       "Accept": "application/json",
       "Content-Type": "application/json",
@@ -144,10 +127,11 @@ class NetworkServiceHandler{
     required Map<String, dynamic> body,
     FutureOr<void> Function(dynamic response)? onSuccess,
     void Function(dynamic error)? onError, // Added onError callback
-    bool useNonAuthHeaders = false,
     bool showSuccessSnackBar = false,
+    bool useNonAuthHeaders = false,
+    Map<String,String>? customHeaders,
   }) async {
-    bool containsFile = body.values.any((value) => value is XFile || value is List<XFile>);
+    bool containsFile = body.values.any((value) => value is File || value is List<File>);
     http.Response response;
 
     try {
@@ -155,7 +139,10 @@ class NetworkServiceHandler{
         var request = http.MultipartRequest('POST', Uri.parse(url));
 
         // Add headers
-        if (useNonAuthHeaders) {
+
+        if(customHeaders != null){
+          request.headers.addAll(customHeaders);
+        }else if (useNonAuthHeaders) {
           request.headers.addAll(_nonAuthHeaders());
         } else {
           request.headers.addAll(await _headers());
@@ -167,7 +154,7 @@ class NetworkServiceHandler{
           var value = entry.value;
 
           if (value is List) {
-            if (value is List<XFile>) {
+            if (value is List<File>) {
               for (var i = 0; i < value.length; i++) {
                 request.files.add(await http.MultipartFile.fromPath('$key[$i]', value[i].path));
               }
@@ -182,7 +169,7 @@ class NetworkServiceHandler{
                 request.fields['$key[$i]'] = value[i].toString();
               }
             }
-          } else if (value is XFile) {
+          } else if (value is File) {
             request.files.add(await http.MultipartFile.fromPath(key, value.path));
           } else {
             request.fields[key] = value.toString();
@@ -195,7 +182,7 @@ class NetworkServiceHandler{
       } else {
         response = await http.post(
           Uri.parse(url),
-          headers: useNonAuthHeaders ? _nonAuthHeaders() : await _headers(),
+          headers: customHeaders ?? (useNonAuthHeaders ? _nonAuthHeaders() : await _headers()),
           body: jsonEncode(body),
         );
       }
@@ -224,9 +211,9 @@ class NetworkServiceHandler{
     }
   }
 
-  Future<dynamic> getDataHandler(String url,{FutureOr<void> Function(dynamic response)? onSuccess, bool useNonAuthHeaders = false,})async {
+  Future<dynamic> getDataHandler(String url,{FutureOr<void> Function(dynamic response)? onSuccess, bool useNonAuthHeaders = false, Map<String,String>? customHeaders})async {
     var response = await http.get(
-        Uri.parse(url), headers: useNonAuthHeaders ? _nonAuthHeaders() : await _headers());
+        Uri.parse(url), headers: customHeaders ?? (useNonAuthHeaders ? _nonAuthHeaders() : await _headers()));
 
     var decodedResponse = await _decodeResponse(response, url: url);
     // print(decodedResponse);
@@ -238,8 +225,8 @@ class NetworkServiceHandler{
     }
   }
 
-  Future<dynamic> deleteDataHandler(String url,{FutureOr<void> Function(dynamic response)? onSuccess})async{
-    var response = await http.delete(Uri.parse(url),headers: await _headers());
+  Future<dynamic> deleteDataHandler(String url,{FutureOr<void> Function(dynamic response)? onSuccess, Map<String,String>? customHeaders})async{
+    var response = await http.delete(Uri.parse(url),headers: customHeaders ?? await _headers());
     var decodedJson = await _decodeResponse(response, url: url);
     if(decodedJson[validationKey] == true){
       if(context?.mounted ?? false){
