@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum SnapshotTransition { fade, scale, slide, rotate, size }
+enum SnapshotTransition { fade, scale, slide, rotate, size,none}
 
 class SnapshotHandler<T> extends StatelessWidget {
   final AsyncSnapshot<T> snapshot;
@@ -58,6 +58,9 @@ class SnapshotHandler<T> extends StatelessWidget {
 
           case SnapshotTransition.fade:
             return FadeTransition(opacity: animation, child: child);
+
+          case SnapshotTransition.none:
+            return child;
         }
       },
       child: _buildChild(),

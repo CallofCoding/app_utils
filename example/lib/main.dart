@@ -24,6 +24,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: AppUtils.instance.navigatorKey,
       title: 'Flutter Demo',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
@@ -46,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   NetworkServiceHandler serviceHandler = NetworkServiceHandler();
 
   Future<void> getData()async{
-    String url = "your-endpoint";
+    String url = "https://dog.ceo/api/breeds/image/random";
     serviceHandler.getDataHandler(url,onSuccess: (response) {
       UserSession.instance.saveToken('234890qwertyuiop');
       response['data'];
@@ -60,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           AppTextField(errorMsg: 'errorMsg'),
-          FutureBuilder(future: Future.delayed(Duration(seconds: 5)), builder: (context, snapshot) => SnapshotHandler(snapshot: snapshot, onSuccess: (data) => SizedBox(),),),
+          FutureBuilder(future: getData(), builder: (context, snapshot) => SnapshotHandler(snapshot: snapshot, onSuccess: (data) => SizedBox(),),),
         ],
       ),
     );
